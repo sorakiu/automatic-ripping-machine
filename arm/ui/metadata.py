@@ -175,6 +175,12 @@ def tmdb_search(search_query=None, year=None):
 
     has_movies = movie_results.get('total_results', 0) > 0
     has_tv = tv_results.get('total_results', 0) > 0
+    prefer_tv = cfg.arm_config.get('PREFER_TV', False)
+
+    # PREFER_TV: skip straight to TV results when the flag is set
+    if prefer_tv and has_tv:
+        app.logger.debug("tmdb_search - PREFER_TV enabled, returning TV series results")
+        return tmdb_process_results(poster_base, return_results, tv_results, "series")
 
     # When both types match and a year hint exists, pick whichever is closer
     if year and has_movies and has_tv:

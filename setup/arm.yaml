@@ -100,6 +100,10 @@ DATA_RIP_PARAMETERS: ""
 # You will still need to provide an api key for the provider you have selected
 METADATA_PROVIDER: "omdb"
 
+# When true, TV series results are preferred over movies when both match a search query.
+# Toggle this on when ripping TV box sets, off for normal movie rips.
+PREFER_TV: false
+
 # Set to one of "none", "musicbrainz", "freecddb"
 # if "musicbrainz" is used the disc information are asked from musicbrainz.org
 # if "none" is used no label is identified
