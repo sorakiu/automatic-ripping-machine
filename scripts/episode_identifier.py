@@ -269,14 +269,21 @@ def fetch_subtitles_for_show(
 
 
 def load_whisper_model(model_name: str) -> Any:
-    """Load Whisper model, preferring CUDA when available."""
+    """Load Whisper model, preferring CUDA when available, falling back to CPU."""
     try:
         import torch
         device = "cuda" if torch.cuda.is_available() else "cpu"
     except ImportError:
         device = "cpu"
+    device = os.environ.get("WHISPER_DEVICE", device)
     log.info("Loading Whisper '%s' on %s", model_name, device)
-    return whisper.load_model(model_name, device=device)
+    try:
+        return whisper.load_model(model_name, device=device)
+    except RuntimeError:
+        if device != "cpu":
+            log.warning("Failed to load Whisper on %s, falling back to CPU", device)
+            return whisper.load_model(model_name, device="cpu")
+        raise
 
 
 def extract_audio_clip(mkv_path: Path, offset: int, duration: int, out_path: Path) -> bool:
