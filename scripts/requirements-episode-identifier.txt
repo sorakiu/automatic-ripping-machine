@@ -1,0 +1,8 @@
+# Dependencies for episode_identifier.py
+# Install into the ARM virtualenv:
+#   pip install -r scripts/requirements-episode-identifier.txt
+
+openai-whisper==20250625
+rapidfuzz==3.14.5
+inotify-simple==2.0.1
+subliminal==2.6.0

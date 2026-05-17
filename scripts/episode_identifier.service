@@ -1,0 +1,42 @@
+[Unit]
+Description=ARM Episode Identifier — auto-rename ripped TV episodes via STT + subtitle matching
+After=network.target
+# Start after ARM's own service so subtitle fetches don't race the API
+After=arm.service
+
+[Service]
+Type=simple
+User=arm
+Group=arm
+
+# Create this file with your OpenSubtitles credentials and path overrides.
+# Install it with: sudo install -m 640 -o arm -g arm episode-identifier.env /opt/arm/etc/
+#
+# Required variables:
+#   OPENSUBTITLES_API_KEY=your_api_key
+#   OPENSUBTITLES_USERNAME=your_username
+#   OPENSUBTITLES_PASSWORD=your_password
+#
+# Optional overrides (defaults shown):
+#   WATCH_DIR=/home/arm/media/completed/tv
+#   OUTPUT_DIR=/home/arm/media/renamed/tv
+#   CACHE_DIR=/home/arm/cache/episode-id
+#   WHISPER_MODEL=base
+#   CONFIDENCE_THRESHOLD=65
+EnvironmentFile=/opt/arm/etc/episode-identifier.env
+
+ExecStart=/opt/arm/venv-episode-id/bin/python3 /opt/arm/scripts/episode_identifier.py watch
+
+Restart=on-failure
+RestartSec=10
+
+# Give Whisper time to finish processing before a forced kill on stop
+TimeoutStopSec=120
+
+# Write logs to the system journal; view with: journalctl -u arm-episode-id -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=arm-episode-id
+
+[Install]
+WantedBy=multi-user.target
