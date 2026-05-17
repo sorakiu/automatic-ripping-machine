@@ -148,31 +148,56 @@ def tmdb_process_poster(search_results, poster_base):
 
 def tmdb_search(search_query=None, year=None):
     """
-    Queries api.themoviedb.org for movies close to the query
+    Queries api.themoviedb.org for movies and TV series close to the query.
+    When a year is supplied both types are searched and the result whose first
+    release year is closest to the target wins, so a TV series like
+    "Renegade (1992)" won't be beaten by a same-named movie from 2004.
+    Without a year, movies are preferred (original behaviour, no regression).
     :param search_query: title of movie or tv show
     :param year: year of release
     :return: json/dict of search results
     """
     tmdb_api_key = cfg.arm_config['TMDB_API_KEY']
-    search_results, poster_base, response = tmdb_fetch_results(search_query, year, tmdb_api_key)
-    app.logger.debug(f"Search results - movie - {search_results}")
-    if 'status_code' in search_results:
-        app.logger.error(f"tmdb_fetch_results failed with error -  {search_results['status_message']}")
+    movie_results, poster_base, _ = tmdb_fetch_results(search_query, year, tmdb_api_key)
+    app.logger.debug(f"Search results - movie - {movie_results}")
+    if 'status_code' in movie_results:
+        app.logger.error(f"tmdb_fetch_results failed with error -  {movie_results['status_message']}")
         return None
     return_results = {}
-    if search_results['total_results'] > 0:
-        app.logger.debug(f"tmdb_search - found {search_results['total_results']} movies")
-        return tmdb_process_results(poster_base, return_results, search_results, "movie")
-    # Search for tv series
-    app.logger.debug("tmdb_search - movie not found, trying tv series ")
-    url = f"https://api.themoviedb.org/3/search/tv?api_key={tmdb_api_key}&query={search_query}"
-    response = requests.get(url)
-    search_results = json.loads(response.text)
-    if search_results['total_results'] > 0:
-        app.logger.debug(search_results['total_results'])
-        return tmdb_process_results(poster_base, return_results, search_results, "series")
 
-    # We got to here with no results give nothing back
+    # Search TV series in parallel; pass year for better TMDB ranking
+    if year:
+        tv_url = (f"https://api.themoviedb.org/3/search/tv?api_key={tmdb_api_key}"
+                  f"&query={search_query}&first_air_date_year={year}")
+    else:
+        tv_url = f"https://api.themoviedb.org/3/search/tv?api_key={tmdb_api_key}&query={search_query}"
+    tv_results = json.loads(requests.get(tv_url).text)
+
+    has_movies = movie_results.get('total_results', 0) > 0
+    has_tv = tv_results.get('total_results', 0) > 0
+
+    # When both types match and a year hint exists, pick whichever is closer
+    if year and has_movies and has_tv:
+        try:
+            target = int(year)
+            movie_year = int((movie_results['results'][0].get('release_date') or '0')[:4])
+            tv_year = int((tv_results['results'][0].get('first_air_date') or '0')[:4])
+            if tv_year and abs(tv_year - target) < abs(movie_year - target):
+                app.logger.debug(
+                    f"tmdb_search - TV year {tv_year} closer to {target} than movie year {movie_year}, preferring series"
+                )
+                return tmdb_process_results(poster_base, return_results, tv_results, "series")
+        except (ValueError, IndexError):
+            pass
+
+    if has_movies:
+        app.logger.debug(f"tmdb_search - found {movie_results['total_results']} movies")
+        return tmdb_process_results(poster_base, return_results, movie_results, "movie")
+
+    if has_tv:
+        app.logger.debug(f"tmdb_search - found {tv_results['total_results']} TV series")
+        return tmdb_process_results(poster_base, return_results, tv_results, "series")
+
     app.logger.debug("tmdb_search - no results found")
     return None
 
