@@ -292,21 +292,27 @@ def extract_audio_clip(mkv_path: Path, offset: int, duration: int, out_path: Pat
     Returns:
         False if the offset is past the end of the file or ffmpeg fails.
     """
-    result = subprocess.run(
-        [
-            "ffmpeg", "-y",
-            "-ss", str(offset),
-            "-i", str(mkv_path),
-            "-t", str(duration),
-            "-vn",
-            "-map", "0:a:0",
-            "-ar", "16000",
-            "-ac", "1",
-            str(out_path),
-        ],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-ss", str(offset),
+                "-i", str(mkv_path),
+                "-t", str(duration),
+                "-vn",
+                "-map", "0:a",        # let ffmpeg pick best audio track
+                "-map_metadata", "-1",
+                "-ar", "16000",
+                "-ac", "1",
+                str(out_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        log.warning("ffmpeg timed out at offset %ds", offset)
+        return False
     if result.returncode != 0 or not out_path.exists():
         log.debug("ffmpeg failed at offset %ds: %s", offset, result.stderr[-300:])
         return False
